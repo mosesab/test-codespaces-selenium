@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import threading
 import time
@@ -12,28 +13,32 @@ import traceback
 import csv
 import json
 import numpy as np
+import sys
 from urllib.parse import urlparse
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from backend import Browser, ZoomBot, GoogleMeetBot, MicrosoftTeamsBot
 from javascript_code import JS_GoogleMeetBot, JS_MicrosoftTeamsBot, JS_ZoomBot
 
-logger = logging.getLogger(__name__)
+logging.basicConfig() 
+logging.getLogger().setLevel(logging.INFO) 
 valid_audio_extensions = ['.mp3', '.wav', '.flac', '.ogg'] # List of valid audio file extensions
 driver = None
 
 ####### ----   REGION - S3 and Code Execution ----   ####### 
 
 
-
 def send_recording_to_S3(recording_file_path, retry_attempts=0):
     retry_attempts+=1
     # Upload the recording file to the S3 bucket
     try:
+        if not os.path.exists(recording_file_path):
+            print(f"Warning: send_recording_to_S3: Path: {recording_file_path} does not exist")
+            return None
         user_id = os.getenv("USER_ID")
         meeting_id = os.getenv("MEETING_ID") 
         time_stamp = str(time.strftime("%Y-%m-%d-%H-%M-%S"))
-        aws_access_key_id = os.getenv['AWS_ACCESS_KEY_ID']
-        aws_secret_access_key = os.getenv['AWS_SECRET_ACCESS_KEY']
+        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         object_name = f"{user_id}+{meeting_id}+{time_stamp}"
         bucket_name = os.getenv("AWS_BUCKET_NAME")
         # Rename the file
@@ -51,11 +56,7 @@ def send_recording_to_S3(recording_file_path, retry_attempts=0):
         response = s3_client.upload_file(
             recording_file_path, 
             bucket_name, 
-            object_name,
-            ExtraArgs={
-                'ServerSideEncryption': 'aws:kms',
-                'BucketKeyEnabled': True
-            }
+            object_name            
         )
         print(f"File {file_name} uploaded successfully to {bucket_name}/{object_name}")
         return response
@@ -93,9 +94,13 @@ def stop_code_execution(driver=None):
     send_recording_to_S3(recording_file_path)
     # Print a message before stopping execution
     print("Stopping all code execution and terminating the process.")
+    # Flush stdout and stderr
+    sys.stdout.flush()
+    sys.stderr.flush()
     # terminates the code abruptly, Docker releases the associated resources like memory.
     os._exit(0)
-    # if running in local, use sys.exit() it is more graceful but needs to be called on all threads.
+    # sys.exit("Main program exiting.")
+    # sys.exit() is more graceful than os._exit() , but it needs to be called on each thread
 
 
 ####### ----   REGION - Selenium - Automatically Join Meetings   ----   ####### 
@@ -179,6 +184,7 @@ def start_bot(start_audio_record_event, retry_attempts=0):
         else:
             print("This is an invalid link, Check again!, it's not a Zoom, Google Meet or Microsoft Teams link.")
             stop_code_execution(driver)
+        print("start_bot finished successfully")
     except Exception as e:
         # retry initialize 5 times
         if retry_attempts >= 5:
@@ -187,7 +193,7 @@ def start_bot(start_audio_record_event, retry_attempts=0):
             stop_code_execution(driver)
         else:
             print(f"An ERROR OCCURED: at start_bot, Retrying {retry_attempts}.")
-            return start_bot(retry_attempts)
+            return start_bot(start_audio_record_event, retry_attempts)
 
 
 ####### ----   REGION - Meeting MetaData Handling  ----   #######
@@ -289,7 +295,8 @@ def record_audio(audio_queue, start_audio_record_event, retry_attempts=0):
 def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio_record_event, retry_attempts=0):
     retry_attempts += 1
     try:
-        stop_after_time = int(os.getenv("CODE_EXECUTION_TIME_LIMIT"))
+        stop_after_time = os.getenv("CODE_EXECUTION_TIME_LIMIT")
+        stop_after_time = int(stop_after_time)
         speaker_sample_rate = 41000
         recording_file_path = os.path.join(os.getcwd(), f"recording.wav")
         write_interval = 10
@@ -320,8 +327,8 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
                 write_metadata_to_csv([start_time, end_time, meta_data])
                 start_time = end_time
                 try:
-                    meeting_has_ended = driver.execute_script("return localStorage.getItem('audioLooping');")
-                    if meeting_has_ended:
+                    meeting_is_ongoing = driver.execute_script("return localStorage.getItem('audioLooping');")
+                    if meeting_is_ongoing is False:
                         print("Hurray, the Meeting has ended.")
                         stop_code_execution(driver) # allows all threads to end
                 except:
@@ -359,15 +366,28 @@ if __name__ == '__main__':
     file_use_permission_queue = queue.Queue()
     start_audio_record_event = threading.Event()
 
-    # Start browser automation in a separate thread
-    selenium_thread = threading.Thread(target=start_bot, args=(start_audio_record_event, 0))
-    selenium_thread.daemon = True
-    selenium_thread.start()
+    # Start audio recording in a separate thread
+    record_thread = threading.Thread(target=record_audio, args=(audio_queue, start_audio_record_event))
+    record_thread.daemon = True
+    record_thread.start()
 
     # Start periodic writing in a separate thread
     writing_thread = threading.Thread(target=write_audio_periodically, args=(audio_queue, file_use_permission_queue, start_audio_record_event))
     writing_thread.daemon = True
     writing_thread.start()
     
-    # Start audio recording in a separate thread
-    record_audio(audio_queue, start_audio_record_event)
+    # Start selenium in main thread
+    selenium_thread = threading.Thread(target=start_bot, args=(start_audio_record_event, 0))
+    selenium_thread.daemon = True
+    selenium_thread.start()
+
+    while True:
+        # Get a list of currently alive threads
+        threads = threading.enumerate()
+        num_threads = len(threads) - 1  # Exclude the main thread
+        # Print the number of active threads (excluding the main thread)
+        print(f"Number of active threads (excluding main): {num_threads}")
+        if num_threads < 1:
+            print("Threads ended, Ending the main thread")
+            break
+        time.sleep(10)  # Check every 10 seconds
