@@ -32,8 +32,8 @@ def send_recording_to_S3(recording_file_path, retry_attempts=0):
         user_id = os.getenv("USER_ID")
         meeting_id = os.getenv("MEETING_ID") 
         time_stamp = str(time.strftime("%Y-%m-%d-%H-%M-%S"))
-        aws_access_key_id = os.getenv['AWS_ACCESS_KEY_ID']
-        aws_secret_access_key = os.getenv['AWS_SECRET_ACCESS_KEY']
+        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         object_name = f"{user_id}+{meeting_id}+{time_stamp}"
         bucket_name = os.getenv("AWS_BUCKET_NAME")
         # Rename the file
@@ -289,7 +289,8 @@ def record_audio(audio_queue, start_audio_record_event, retry_attempts=0):
 def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio_record_event, retry_attempts=0):
     retry_attempts += 1
     try:
-        stop_after_time = int(os.getenv("CODE_EXECUTION_TIME_LIMIT"))
+        stop_after_time = os.getenv("CODE_EXECUTION_TIME_LIMIT")
+        stop_after_time = int(stop_after_time)
         speaker_sample_rate = 41000
         recording_file_path = os.path.join(os.getcwd(), f"recording.wav")
         write_interval = 10
