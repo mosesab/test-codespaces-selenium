@@ -29,6 +29,7 @@ class Browser(object):
 			if initialize_attempts >= 5:
 				print(f"An ERROR OCCURED: While Opening Chrome, Retrying {initialize_attempts}.")
 				#self.call_back.append({traceback.format_exc()})
+				raise
 			else:
 				print(traceback.format_exc())
 				return self.initialize_browser(initialize_attempts)
@@ -104,7 +105,7 @@ class ZoomBot(object):
 			if join_attempts >= 5:
 				print(e)
 				self.driver.close()
-				sys.exit(503)
+				raise
 			else:
 				print(f"An ERROR OCCURED: While Trying To Join Zoom Meeting, Retrying {join_attempts}.")
 				print("This may be because the meeting has not yet started or has already ended.")
@@ -188,7 +189,7 @@ class GoogleMeetBot(object):
 			if join_attempts >= 5:
 				print(traceback.format_exc())
 				self.driver.close()
-				sys.exit(503)
+				raise
 			else:
 				print(f"An ERROR OCCURED: While Trying To Join Google Meet Meeting, Retrying {join_attempts}.")
 				print("This may be because the meeting has not yet started or has already ended.")
@@ -294,7 +295,7 @@ class MicrosoftTeamsBot(object):
             if join_attempts >= 5:
                 print(traceback.format_exc())
                 self.driver.close()
-                sys.exit(503)
+                raise
             else:
                 print(f"An ERROR OCCURED: While Trying To Join Microsoft Teams Meeting, Retrying {join_attempts}.")
                 print("This may be because the meeting has not yet started or has already ended.")
