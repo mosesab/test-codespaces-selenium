@@ -1,28 +1,31 @@
-# Use the base image with undetected-chromedriver and Chrome
-FROM ultrafunk/undetected-chromedriver
+FROM datawookie/undetected-chromedriver:latest
 
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install additional dependencies
+# Install necessary dependencies
 RUN apt-get update && \
     apt-get install -y \
     pulseaudio \
     pavucontrol \
     curl \
     sudo \
+    pulseaudio \
+    xvfb \
     libnss3-tools \
     ffmpeg \
+    xdotool \
     unzip \
+    x11vnc \
     libfontconfig \
     libfreetype6 \
+    xfonts-scalable \
     fonts-liberation \
     fonts-ipafont-gothic \
     fonts-wqy-zenhei \
     xterm \
-    vim && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    vim
+
 
 # Add root to the audio group and pulse-access
 RUN usermod -aG audio root && \
@@ -54,20 +57,46 @@ RUN echo 'user ALL=(ALL:ALL) NOPASSWD:ALL' >> /etc/sudoers && \
     mkdir -p /var/run/dbus && \
     dbus-uuidgen > /var/lib/dbus/machine-id
 
-# Copy the requirements.txt file into the container at /app
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
+# Set up X authority
+RUN touch /root/.Xauthority && \
+    chmod 600 /root/.Xauthority && \
+    rm /run/dbus/pid
+    
 # Ensure pulseaudio.conf is copied into the image
 COPY pulseaudio.conf /app/pulseaudio.conf
-RUN mv pulseaudio.conf /etc/dbus-1/system.d/pulseaudio.conf
+RUN mv /app/pulseaudio.conf /etc/dbus-1/system.d/pulseaudio.conf
 
-# Copy your application code to the container
-COPY . /app
 
-# Set any required environment variables 
+# Update chrome to version 127
+# Define the version variables
+ENV CHROME_VERSION=127.0.6533.72
+ENV CHROMEDRIVER_VERSION=126.0.6478.126
+
+# Download Chrome and Chromedriver
+RUN wget https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip && \
+    wget https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip
+
+# Install Chrome and Chromedriver
+RUN unzip -o -qq chrome-linux64.zip -d /var/local/ && \
+    unzip -o -qq chromedriver-linux64.zip -d /var/local/ && \
+    ln -sf /var/local/chrome-linux64/chrome /usr/local/bin/chrome && \
+    ln -sf /var/local/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
+    rm chrome-linux64.zip chromedriver-linux64.zip
+# Print Chrome Version 
+RUN /bin/sh -c echo "Chrome: $(chrome --version | sed 's/.* \([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\) *$/\1/')" && \ 
+    echo "ChromeDriver: $(chromedriver --version | sed 's/.* \([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\) .*$/\1/')"
+
+# Copy the requirements.txt file into the container at /app
+COPY requirements.txt .
+# Install any dependencies specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the working directory contents into the container at /app
+COPY . .
+
+
+
+# Set other required environment variables
 ENV BOT_NAME="WhisperBot"
 ENV MEETING_LINK="https://meet.google.com/haw-buhx-quj"
 ENV USER_ID="DEFAULT_USER"

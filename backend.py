@@ -12,39 +12,23 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.chrome.service import Service
 
 class Browser(object):
-	def initialize_browser(self, initialize_attempts=0):
-		initialize_attempts += 1
-		try:
-			# Initialize chrome_options
-			chrome_options = uc.ChromeOptions()
-			# Initialize the Chrome webdriver
-			print(f"LOADING: Opening Chrome, This may take a while.")
-			# Patch to fix a bug in uc
-			driver = uc.Chrome(options=chrome_options)
-			return driver
-		except:
-			# retry initialize 5 times
-			if initialize_attempts >= 5:
-				print(f"An ERROR OCCURED: While Opening Chrome, Retrying {initialize_attempts}.")
-				#self.call_back.append({traceback.format_exc()})
-				raise
-			else:
-				print(traceback.format_exc())
-				return self.initialize_browser(initialize_attempts)
-	def write_file(self, participants):
-		"""Write attendance data to the disk as a CSV file"""
-		try:
-			with open("attendance.csv", 'w', encoding='utf-8') as f:
-				fields = ['Name']
-				csvwriter = csv.DictWriter(f, fieldnames=fields)
-				for userData in participants:
-					csvwriter.writerow(userData)
-				print("Data saved successfully!")
-		except IOError:
-			print("Error occured while writing to the disk")
-
+	def initialize_browser(self):
+		# Initialize chrome_options
+		chrome_options = uc.ChromeOptions()
+		chrome_options.add_argument("--disable-search-engine-choice-screen")
+		chrome_options.add_argument("--no-sandbox")
+		chrome_options.add_argument("--disable-setuid-sandbox")
+		# Initialize the Chrome webdriver
+		print(f"LOADING: Opening Chrome, This may take a while.")
+		# Patch to fix a bug in uc
+		executable_path = "/usr/local/bin/chromedriver"
+		driver = uc.Chrome(options=chrome_options, driver_executable_path=executable_path)
+		
+		return driver
+		
 	
 
 

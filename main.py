@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import threading
 import time
@@ -93,17 +94,11 @@ def stop_code_execution(driver=None):
     send_recording_to_S3(recording_file_path)
     # Print a message before stopping execution
     print("Stopping all code execution and terminating the process.")
+    # Flush stdout and stderr
+    sys.stdout.flush()
+    sys.stderr.flush()
     # terminates the code abruptly, Docker releases the associated resources like memory.
-    for t in threading.enumerate():
-        if t is not threading.current_thread():  # Don't stop the main thread
-            try:
-                t._Thread__stop()  # Forcefully stop the thread
-            except AttributeError:
-                print("Critical Warning: _Thread__stop() is not available in this Python version")
-            except:
-                traceback.print_exc()
-                print("Critical Error: stop_code_execution")
-    os._exit()
+    os._exit(0)
     # sys.exit("Main program exiting.")
     # sys.exit() is more graceful than os._exit() , but it needs to be called on each thread
 
@@ -198,7 +193,7 @@ def start_bot(start_audio_record_event, retry_attempts=0):
             stop_code_execution(driver)
         else:
             print(f"An ERROR OCCURED: at start_bot, Retrying {retry_attempts}.")
-            return start_bot(retry_attempts)
+            return start_bot(start_audio_record_event, retry_attempts)
 
 
 ####### ----   REGION - Meeting MetaData Handling  ----   #######
@@ -332,8 +327,8 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
                 write_metadata_to_csv([start_time, end_time, meta_data])
                 start_time = end_time
                 try:
-                    meeting_has_ended = driver.execute_script("return localStorage.getItem('audioLooping');")
-                    if meeting_has_ended:
+                    meeting_is_ongoing = driver.execute_script("return localStorage.getItem('audioLooping');")
+                    if meeting_is_ongoing is False:
                         print("Hurray, the Meeting has ended.")
                         stop_code_execution(driver) # allows all threads to end
                 except:
