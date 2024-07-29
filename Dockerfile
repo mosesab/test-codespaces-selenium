@@ -1,17 +1,16 @@
+# Use the base image with undetected-chromedriver and Chrome
 FROM datawookie/undetected-chromedriver:latest
 
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install necessary dependencies
+# Install additional dependencies
 RUN apt-get update && \
     apt-get install -y \
     pulseaudio \
     pavucontrol \
     curl \
     sudo \
-    pulseaudio \
-    xvfb \
     libnss3-tools \
     ffmpeg \
     xdotool \
@@ -24,8 +23,9 @@ RUN apt-get update && \
     fonts-ipafont-gothic \
     fonts-wqy-zenhei \
     xterm \
-    vim
-
+    vim && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Add root to the audio group and pulse-access
 RUN usermod -aG audio root && \
