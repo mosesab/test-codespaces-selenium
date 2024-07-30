@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import threading
 import time
@@ -93,17 +94,11 @@ def stop_code_execution(driver=None):
     send_recording_to_S3(recording_file_path)
     # Print a message before stopping execution
     print("Stopping all code execution and terminating the process.")
+    # Flush stdout and stderr
+    sys.stdout.flush()
+    sys.stderr.flush()
     # terminates the code abruptly, Docker releases the associated resources like memory.
-    for t in threading.enumerate():
-        if t is not threading.current_thread():  # Don't stop the main thread
-            try:
-                t._Thread__stop()  # Forcefully stop the thread
-            except AttributeError:
-                print("Critical Warning: _Thread__stop() is not available in this Python version")
-            except:
-                traceback.print_exc()
-                print("Critical Error: stop_code_execution")
-    os._exit()
+    os._exit(0)
     # sys.exit("Main program exiting.")
     # sys.exit() is more graceful than os._exit() , but it needs to be called on each thread
 
@@ -189,6 +184,9 @@ def start_bot(start_audio_record_event, retry_attempts=0):
         else:
             print("This is an invalid link, Check again!, it's not a Zoom, Google Meet or Microsoft Teams link.")
             stop_code_execution(driver)
+        # Flush stdout and stderr
+        sys.stdout.flush()
+        sys.stderr.flush()
         print("start_bot finished successfully")
     except Exception as e:
         # retry initialize 5 times
@@ -198,7 +196,7 @@ def start_bot(start_audio_record_event, retry_attempts=0):
             stop_code_execution(driver)
         else:
             print(f"An ERROR OCCURED: at start_bot, Retrying {retry_attempts}.")
-            return start_bot(retry_attempts)
+            return start_bot(start_audio_record_event, retry_attempts)
 
 
 ####### ----   REGION - Meeting MetaData Handling  ----   #######
@@ -230,6 +228,7 @@ def get_meta_data(attempts=0):
 
 def write_metadata_to_csv(meta_data):
     csv_file_path = "metadata.csv"
+    print(f"meta_data: {meta_data}")
     with open(csv_file_path, mode='a', newline='') as file:
         writer = csv.writer(file)     
         # Write headers if the file is empty
@@ -285,6 +284,7 @@ def record_audio(audio_queue, start_audio_record_event, retry_attempts=0):
                 if not chunk:
                     break
                 audio_queue.put(chunk)
+                print(f"chunk: len:{len(chunk)} type:{len(chunk)}")  # Debugging line
             process.wait() # Wait for the process to terminate
     except Exception as e:
         # retry initialize 5 times
@@ -311,17 +311,22 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
         start_time = time.time()
         while True:
             time.sleep(write_interval)
+            # Flush stdout and stderr
+            sys.stdout.flush()
+            sys.stderr.flush()
             data_list = []
+            schedule.run_pending()
             while not audio_queue.empty():
                 data_list.append(audio_queue.get())
             if data_list:
                 all_data = np.concatenate(data_list, axis=0)
+            else:
+                continue
             while True:
                 if file_use_permission_queue.empty():
                     file_use_permission_queue.put(True)
                     break
             try:
-                schedule.run_pending()
                 meta_data = get_meta_data()
                 if meta_data is None:
                     meta_data = "'Empty'"
@@ -332,8 +337,8 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
                 write_metadata_to_csv([start_time, end_time, meta_data])
                 start_time = end_time
                 try:
-                    meeting_has_ended = driver.execute_script("return localStorage.getItem('audioLooping');")
-                    if meeting_has_ended:
+                    meeting_is_ongoing = driver.execute_script("return localStorage.getItem('audioLooping');")
+                    if meeting_is_ongoing is False:
                         print("Hurray, the Meeting has ended.")
                         stop_code_execution(driver) # allows all threads to end
                 except:
@@ -349,7 +354,7 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
                     sf.write(file=recording_file_path, data=all_data[:, 0], samplerate=speaker_sample_rate)
                 except Exception as e:
                     traceback.print_exc()
-                    print(f"WARNING: Couldn't write audio to file ater FileNotFoundError: {e}")
+                    print(f"WARNING: Couldn't write audio to file after FileNotFoundError: {e}")
             except Exception as e:
                 traceback.print_exc()
                 print(f"WARNING: Couldn't write audio to file: {e}")
