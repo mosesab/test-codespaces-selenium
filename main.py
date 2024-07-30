@@ -184,6 +184,9 @@ def start_bot(start_audio_record_event, retry_attempts=0):
         else:
             print("This is an invalid link, Check again!, it's not a Zoom, Google Meet or Microsoft Teams link.")
             stop_code_execution(driver)
+        # Flush stdout and stderr
+        sys.stdout.flush()
+        sys.stderr.flush()
         print("start_bot finished successfully")
     except Exception as e:
         # retry initialize 5 times
@@ -225,6 +228,7 @@ def get_meta_data(attempts=0):
 
 def write_metadata_to_csv(meta_data):
     csv_file_path = "metadata.csv"
+    print(f"meta_data: {meta_data}")
     with open(csv_file_path, mode='a', newline='') as file:
         writer = csv.writer(file)     
         # Write headers if the file is empty
@@ -280,6 +284,7 @@ def record_audio(audio_queue, start_audio_record_event, retry_attempts=0):
                 if not chunk:
                     break
                 audio_queue.put(chunk)
+                print(f"chunk: len:{len(chunk)} type:{len(chunk)}")  # Debugging line
             process.wait() # Wait for the process to terminate
     except Exception as e:
         # retry initialize 5 times
@@ -306,17 +311,22 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
         start_time = time.time()
         while True:
             time.sleep(write_interval)
+            # Flush stdout and stderr
+            sys.stdout.flush()
+            sys.stderr.flush()
             data_list = []
+            schedule.run_pending()
             while not audio_queue.empty():
                 data_list.append(audio_queue.get())
             if data_list:
                 all_data = np.concatenate(data_list, axis=0)
+            else:
+                continue
             while True:
                 if file_use_permission_queue.empty():
                     file_use_permission_queue.put(True)
                     break
             try:
-                schedule.run_pending()
                 meta_data = get_meta_data()
                 if meta_data is None:
                     meta_data = "'Empty'"
@@ -344,7 +354,7 @@ def write_audio_periodically(audio_queue, file_use_permission_queue, start_audio
                     sf.write(file=recording_file_path, data=all_data[:, 0], samplerate=speaker_sample_rate)
                 except Exception as e:
                     traceback.print_exc()
-                    print(f"WARNING: Couldn't write audio to file ater FileNotFoundError: {e}")
+                    print(f"WARNING: Couldn't write audio to file after FileNotFoundError: {e}")
             except Exception as e:
                 traceback.print_exc()
                 print(f"WARNING: Couldn't write audio to file: {e}")

@@ -21,6 +21,9 @@ class Browser(object):
 		chrome_options.add_argument("--disable-search-engine-choice-screen")
 		chrome_options.add_argument("--no-sandbox")
 		chrome_options.add_argument("--disable-setuid-sandbox")
+
+		chrome_options.add_argument("--use-fake-ui-for-media-stream")
+
 		# Initialize the Chrome webdriver
 		print(f"LOADING: Opening Chrome, This may take a while.")
 		# Patch to fix a bug in uc
@@ -151,11 +154,14 @@ class GoogleMeetBot(object):
 		join_attempts += 1
 		try:
 			self.driver.get(self.meeting_url)
-			# Wait until the element is visible and clickable
-			continue_button_xpath = "//span[contains(text(), 'Continue without microphone')]"
-			continue_button = WebDriverWait(self.driver, 30).until(EC.element_to_be_clickable((By.XPATH, continue_button_xpath)))
-			# Click the element
-			continue_button.click()
+			try:
+				# Wait until the element is visible and clickable
+				continue_button_xpath = "//span[contains(text(), 'Continue without microphone')]"
+				continue_button = WebDriverWait(self.driver, 30).until(EC.element_to_be_clickable((By.XPATH, continue_button_xpath)))
+				# Click the element
+				continue_button.click()
+			except:
+				pass
 			print(f"LOADING: {self.meeting_url} - {join_attempts} attempts")
 			# Wait until the input field is visible
 			name_input_xpath = "//input[@placeholder='Your name']"
