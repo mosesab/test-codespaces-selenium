@@ -21,7 +21,9 @@ class Browser(object):
 		chrome_options.add_argument("--disable-search-engine-choice-screen")
 		chrome_options.add_argument("--no-sandbox")
 		chrome_options.add_argument("--disable-setuid-sandbox")
+
 		chrome_options.add_argument("--use-fake-ui-for-media-stream")
+
 		# Initialize the Chrome webdriver
 		print(f"LOADING: Opening Chrome, This may take a while.")
 		# Patch to fix a bug in uc
