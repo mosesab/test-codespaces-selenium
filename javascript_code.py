@@ -89,7 +89,7 @@ class JS_GoogleMeetBot(object):
         if(audioLooping){storeData();}
         await new Promise((resolve)=>{checkInt = setInterval(()=>{
                 if(currentAudioChunk != null){clearInterval(checkInt); resolve();}},100);});
-        allData.push([time,allAttendees,activeMike,changeInVoice,currentAudioChunk]);
+        allData.push([time,allAttendees,activeMike,changeInVoice]);//,currentAudioChunk]);
         if(allData.length >12){allData = allData.slice(1,allData.length);}
         localStorage.setItem("audioData",JSON.stringify(allData));},audioChuckTime);
     }
@@ -227,7 +227,7 @@ async function storeData(){
             },100)
         })
 
-        allData.push([time,allAttendees,activeMike,changeInVoice,currentAudioChunk])
+        allData.push([time,allAttendees,activeMike,changeInVoice])//,currentAudioChunk])
 
         if(allData.length > 9){
             allData = allData.slice(1,allData.length)
@@ -392,7 +392,7 @@ async function storeData(){
             },100 )
         })
         // console.log(currentAudioChunk)
-        allData.push([time,allAttendees,activeMike,changeInVoice,currentAudioChunk])
+        allData.push([time,allAttendees,activeMike,changeInVoice])//,currentAudioChunk])
         if(allData.length > 12){
             allData = allData.slice(1,allData.length)
         }
